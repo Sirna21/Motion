@@ -1,0 +1,5 @@
+endtime,timestep
+100,0.1
+
+mass,x,y,vx,vy
+1E6,0,0,0,0

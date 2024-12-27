@@ -1,0 +1,183 @@
+import numpy as np
+
+""" TafeseSirnaA3Q2
+COMP 1012 SECTION A02
+INSTRUCTOR Dr. Shaiful Chowdhury 
+ASSIGNMENT: A3 Question 2
+AUTHOR: Sirna Tafese
+VERSION November 22, 2024
+PURPOSE: Simulating Gravitational Motion
+"""
+
+def readSimulationFile(fileName):
+    """
+    Extracts time, step duration, and body data from the input file.
+    
+    Returns:
+    - simulationEndTime (float)
+    - timeStepDuration (float)
+    - bodyMasses (ndarray)
+    - bodyXPositions (ndarray)
+    - bodyYPositions (ndarray)
+    - bodyXVelocities (ndarray)
+    - bodyYVelocities (ndarray)
+    """
+    # Open file and read contents
+    fileHandle = open(fileName, 'r')
+    fileLines = fileHandle.readlines()
+    fileHandle.close()
+    
+    # Parse time and step duration from second line
+    timeLine = fileLines[1].split()
+    timeLine = timeLine[0].replace(',', '.')
+    if timeLine.count('.') > 1:
+        timeLine = timeLine.split('.')[0] + '.' + timeLine.split('.')[1]
+    simulationEndTime = float(timeLine)
+    timeStepDuration = float(timeLine[1].replace(',', '.'))  
+    
+    # Parse body properties from lines starting from the 4th
+    bodyDataList = []
+    for bodyLine in fileLines[4:]:
+        if bodyLine.strip():
+            bodyValues = bodyLine.replace(',', ' ').split()
+            for value in bodyValues:
+                bodyDataList.append(float(value))
+    
+    # Convert list to NumPy array
+    bodyDataArray = np.array(bodyDataList)
+
+    # Split into chunks of 5 and store in list
+    chunkedDataList = []
+    for i in range(0, len(bodyDataArray), 5):
+        chunkedDataList.append(bodyDataArray[i:i+5])
+
+    # Convert list of chunks back to NumPy array
+    bodyDataArray = np.array(chunkedDataList)
+
+    bodyMasses = bodyDataArray[:, 0]
+    bodyXPositions = bodyDataArray[:, 1]
+    bodyYPositions = bodyDataArray[:, 2]
+    bodyXVelocities = bodyDataArray[:, 3]
+    bodyYVelocities = bodyDataArray[:, 4]
+    
+    return simulationEndTime, timeStepDuration, bodyMasses, bodyXPositions, bodyYPositions, bodyXVelocities, bodyYVelocities
+
+def calculateAcceleration(bodyIndex, bodyMasses, bodyXPositions, bodyYPositions):
+    """
+    Computes gravitational acceleration on a given body.
+    
+    Returns:
+    - accelerationX (float)
+    - accelerationY (float)
+    """
+    # Gravitational constant (set to 1)
+    gravitationalConstant = 1
+    deltaX = bodyXPositions - bodyXPositions[bodyIndex]
+    deltaY = bodyYPositions - bodyYPositions[bodyIndex]
+    distances = np.sqrt(deltaX**2 + deltaY**2)
+    distances[bodyIndex] = np.inf  # Ignore self-interaction
+    distancesCubed = distances**3
+
+    # Sum forces for x and y components
+    accelerationX = np.sum(bodyMasses * deltaX / distancesCubed)
+    accelerationY = np.sum(bodyMasses * deltaY / distancesCubed)
+
+    return accelerationX, accelerationY
+
+
+def updateBodyPositionsAndVelocities(timeStepDuration, bodyMasses, bodyXPositions, bodyYPositions, bodyXVelocities, bodyYVelocities):
+
+    """
+    Updates the positions and velocities for each body after one time step.
+    
+    Returns:
+    - Updated positions and velocities (ndarrays)
+    """
+    # Initialize acceleration arrays
+    accelerationsX = np.zeros(len(bodyXPositions))
+    accelerationsY = np.zeros(len(bodyYPositions))   
+
+    # Calculate acceleration for each body
+    for i in range(len(bodyMasses)):
+        accelerationX, accelerationY = calculateAcceleration(i, bodyMasses, bodyXPositions, bodyYPositions)
+        accelerationsX[i] = accelerationX
+        accelerationsY[i] = accelerationY
+    
+    # Update positions and velocities
+    bodyXPositions += bodyXVelocities * timeStepDuration
+    bodyYPositions += bodyYVelocities * timeStepDuration
+    bodyXVelocities += accelerationsX * timeStepDuration
+    bodyYVelocities += accelerationsY * timeStepDuration
+    
+    return bodyXPositions, bodyYPositions, bodyXVelocities, bodyYVelocities
+
+
+def runSimulationProcess(simulationEndTime, timeStepDuration, bodyMasses, bodyXPositions, bodyYPositions, bodyXVelocities, bodyYVelocities):
+    """
+    Runs the simulation, updating the system and reporting progress.
+    
+    Returns:
+    - None
+    """
+    # Initialize simulation time
+    currentSimulationTime = 0
+    
+    # Handle case where timeStepDuration is zero
+    if timeStepDuration == 0:
+        print("Warning: Time step duration is zero. Defaulting to 0.1.")
+        timeStepDuration = 0.1
+
+    # Compute total simulation steps
+    totalSimulationSteps = int(simulationEndTime / timeStepDuration)
+    if simulationEndTime % timeStepDuration != 0:
+        totalSimulationSteps += 1    
+    
+    # Define progress milestones
+    progressMilestones = [0.25, 0.5, 0.75, 1.0]
+    progressStepList = []
+    for m in progressMilestones:
+        step = m * totalSimulationSteps
+        progressStepList.append(int(step))
+    
+    # Run the simulation, updating positions and velocities
+    for stepIndex in range(totalSimulationSteps):
+        bodyXPositions, bodyYPositions, bodyXVelocities, bodyYVelocities = updateBodyPositionsAndVelocities(
+            timeStepDuration, bodyMasses, bodyXPositions, bodyYPositions, bodyXVelocities, bodyYVelocities
+        )
+
+        currentSimulationTime += timeStepDuration
+
+        # Print progress at milestones using time Units
+        if stepIndex + 1 in progressStepList:
+            print("Progress: {:.0f}% (Current time = {:.2f})".format(100 * (stepIndex + 1) / totalSimulationSteps, currentSimulationTime))
+
+    # Output final results
+    print("\nSimulation complete. Final positions and velocities:")
+    for bodyIndex in range(len(bodyMasses)):
+        print("Body {}:".format(bodyIndex + 1))
+        print("  Position: ({:.2f}, {:.2f})".format(bodyXPositions[bodyIndex], bodyYPositions[bodyIndex]))
+        print("  Velocity: ({:.2f}, {:.2f})".format(bodyXVelocities[bodyIndex], bodyYVelocities[bodyIndex]))
+
+
+def main():
+    """
+    Main driver for the simulation program.
+    
+    Returns:
+    - None
+    """
+    # Get the input file name
+    inputFileName = input("Enter simulation input file name: ")
+    
+    # Read simulation data from the file
+    simulationEndTime, timeStepDuration, bodyMasses, bodyXPositions, bodyYPositions, bodyXVelocities, bodyYVelocities = readSimulationFile(inputFileName)
+    
+    # Run the simulation
+    runSimulationProcess(simulationEndTime, timeStepDuration, bodyMasses, bodyXPositions, bodyYPositions, bodyXVelocities, bodyYVelocities)
+
+
+if __name__ == "__main__":
+    # Run main
+    main()
+
+print("End of Program")
